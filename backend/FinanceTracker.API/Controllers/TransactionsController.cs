@@ -43,11 +43,18 @@ namespace FinanceTracker.API.Controllers
         [HttpPut("{id}")]
         public IActionResult Update(int id, [FromBody] Transaction transaction)
         {
+            Console.WriteLine($"=== UPDATE TRANSACTION {id} ===");
+            Console.WriteLine($"Description: {transaction.Description}");
+            Console.WriteLine($"Amount: {transaction.Amount}");
+            Console.WriteLine($"Type: {transaction.Type}");
+            Console.WriteLine($"CategoryId: {transaction.CategoryId}");
+
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             var updated = _financeService.UpdateTransaction(id, transaction);
             if (updated == null) return NotFound();
 
+            Console.WriteLine($"=== UPDATE SUCCESS ===");
             return Ok(updated);
         }
 

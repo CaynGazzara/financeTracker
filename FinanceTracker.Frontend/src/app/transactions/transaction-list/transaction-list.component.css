@@ -1,0 +1,37 @@
+.transaction-list-container {
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+}
+
+.income {
+  color: #10B981;
+  font-weight: bold;
+}
+
+.expense {
+  color: #EF4444;
+  font-weight: bold;
+}
+
+.category-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.mat-column-actions {
+  width: 120px;
+  text-align: center;
+}

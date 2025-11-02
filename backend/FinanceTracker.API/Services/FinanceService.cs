@@ -1,5 +1,4 @@
-﻿// Services/FinanceService.cs
-using FinanceTracker.API.Models;
+﻿using FinanceTracker.API.Models;
 
 namespace FinanceTracker.API.Services
 {
@@ -8,6 +7,7 @@ namespace FinanceTracker.API.Services
         private readonly List<Transaction> _transactions = new();
         private readonly List<Category> _categories = new();
         private int _nextTransactionId = 1;
+        private readonly object _lock = new object(); // ✅ Lock para thread safety
 
         public FinanceService()
         {
@@ -32,59 +32,113 @@ namespace FinanceTracker.API.Services
 
         private void SeedSampleData()
         {
-            _transactions.AddRange(new[]
+            lock (_lock)
             {
-                new Transaction { Id = _nextTransactionId++, Description = "Salário", Amount = 3000, Date = DateTime.Now.AddDays(-5), Type = TransactionType.Income, CategoryId = 1 },
-                new Transaction { Id = _nextTransactionId++, Description = "Mercado", Amount = 250, Date = DateTime.Now.AddDays(-3), Type = TransactionType.Expense, CategoryId = 4 },
-                new Transaction { Id = _nextTransactionId++, Description = "Uber", Amount = 35, Date = DateTime.Now.AddDays(-1), Type = TransactionType.Expense, CategoryId = 5 },
-                new Transaction { Id = _nextTransactionId++, Description = "Freelance", Amount = 800, Date = DateTime.Now.AddDays(-2), Type = TransactionType.Income, CategoryId = 3 }
-            });
+                _transactions.AddRange(new[]
+                {
+                    new Transaction { Id = _nextTransactionId++, Description = "Salário", Amount = 3000, Date = DateTime.Now.AddDays(-5), Type = TransactionType.Income, CategoryId = 1 },
+                    new Transaction { Id = _nextTransactionId++, Description = "Mercado", Amount = 250, Date = DateTime.Now.AddDays(-3), Type = TransactionType.Expense, CategoryId = 4 },
+                    new Transaction { Id = _nextTransactionId++, Description = "Uber", Amount = 35, Date = DateTime.Now.AddDays(-1), Type = TransactionType.Expense, CategoryId = 5 },
+                    new Transaction { Id = _nextTransactionId++, Description = "Freelance", Amount = 800, Date = DateTime.Now.AddDays(-2), Type = TransactionType.Income, CategoryId = 3 }
+                });
+            }
         }
 
         public List<Transaction> GetAllTransactions()
         {
-            return _transactions.OrderByDescending(t => t.Date).ToList();
+            lock (_lock)
+            {
+                return _transactions.OrderByDescending(t => t.Date).Select(t => new Transaction
+                {
+                    Id = t.Id,
+                    Description = t.Description,
+                    Amount = t.Amount,
+                    Date = t.Date,
+                    Type = t.Type,
+                    CategoryId = t.CategoryId,
+                    Category = _categories.FirstOrDefault(c => c.Id == t.CategoryId)
+                }).ToList();
+            }
         }
 
         public Transaction? GetTransactionById(int id)
         {
-            return _transactions.FirstOrDefault(t => t.Id == id);
+            lock (_lock)
+            {
+                var transaction = _transactions.FirstOrDefault(t => t.Id == id);
+                if (transaction == null) return null;
+
+                return new Transaction
+                {
+                    Id = transaction.Id,
+                    Description = transaction.Description,
+                    Amount = transaction.Amount,
+                    Date = transaction.Date,
+                    Type = transaction.Type,
+                    CategoryId = transaction.CategoryId,
+                    Category = _categories.FirstOrDefault(c => c.Id == transaction.CategoryId)
+                };
+            }
         }
 
         public Transaction CreateTransaction(Transaction transaction)
         {
-            transaction.Id = _nextTransactionId++;
-            transaction.Category = _categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
-            _transactions.Add(transaction);
-            return transaction;
+            lock (_lock)
+            {
+                var newTransaction = new Transaction
+                {
+                    Id = _nextTransactionId++,
+                    Description = transaction.Description,
+                    Amount = transaction.Amount,
+                    Date = transaction.Date,
+                    Type = transaction.Type,
+                    CategoryId = transaction.CategoryId,
+                    Category = _categories.FirstOrDefault(c => c.Id == transaction.CategoryId)
+                };
+
+                _transactions.Add(newTransaction);
+                return newTransaction;
+            }
         }
 
         public Transaction? UpdateTransaction(int id, Transaction transaction)
         {
-            var existingTransaction = GetTransactionById(id);
-            if (existingTransaction == null) return null;
+            lock (_lock)
+            {
+                var existingTransactionIndex = _transactions.FindIndex(t => t.Id == id);
+                if (existingTransactionIndex == -1) return null;
 
-            existingTransaction.Description = transaction.Description;
-            existingTransaction.Amount = transaction.Amount;
-            existingTransaction.Date = transaction.Date;
-            existingTransaction.Type = transaction.Type;
-            existingTransaction.CategoryId = transaction.CategoryId;
-            existingTransaction.Category = _categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+                var updatedTransaction = new Transaction
+                {
+                    Id = id,
+                    Description = transaction.Description,
+                    Amount = transaction.Amount,
+                    Date = transaction.Date,
+                    Type = transaction.Type,
+                    CategoryId = transaction.CategoryId,
+                    Category = _categories.FirstOrDefault(c => c.Id == transaction.CategoryId)
+                };
 
-            return existingTransaction;
+                _transactions[existingTransactionIndex] = updatedTransaction;
+                return updatedTransaction;
+            }
         }
 
         public bool DeleteTransaction(int id)
         {
-            var transaction = GetTransactionById(id);
-            if (transaction == null) return false;
+            lock (_lock)
+            {
+                var transactionIndex = _transactions.FindIndex(t => t.Id == id);
+                if (transactionIndex == -1) return false;
 
-            return _transactions.Remove(transaction);
+                _transactions.RemoveAt(transactionIndex);
+                return true;
+            }
         }
 
         public List<Category> GetCategories()
         {
-            return _categories;
+            return _categories.ToList();
         }
 
         public DashboardSummary GetDashboardSummary()
